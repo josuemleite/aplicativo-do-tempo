@@ -8,11 +8,13 @@ import model.parse.XStreamParser;
 import model.service.WeatherForecastService;
 
 import javax.swing.*;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.io.IOException;
+import java.net.URL;
 import java.text.Normalizer;
 import java.text.Normalizer.Form;
 import java.text.ParseException;
@@ -117,7 +119,7 @@ public class WeatherAppGui extends JFrame {
         painelCarregamento.add(rotuloCarregando, BorderLayout.CENTER);
         add(painelCarregamento, BorderLayout.SOUTH);
 
-        String[] nomesColunas = {"Nome da Cidade", "Estado", "Data", "Temperatura (Max / Min)", "Condição"};
+        String[] nomesColunas = {"Nome da Cidade", "Estado", "Data", "Temperatura (Max / Min)", "Condição", "Imagem"};
         modeloTabela = new DefaultTableModel(nomesColunas, 0);
         tabelaCidades = new JTable(modeloTabela);
         tabelaCidades.setCellSelectionEnabled(false);
@@ -125,6 +127,23 @@ public class WeatherAppGui extends JFrame {
         JScrollPane painelRolagem = new JScrollPane(tabelaCidades);
 
         add(painelRolagem, BorderLayout.CENTER);
+
+        tabelaCidades.getColumnModel().getColumn(5).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+                if (value instanceof ImageIcon) {
+                    // Redimensiona a imagem
+                    ImageIcon icon = (ImageIcon) value;
+                    ImageIcon imagemRedimensionada = redimensionarImagem(icon, 40, 40); // Tamanho padrão 50x50
+                    JLabel label = new JLabel(imagemRedimensionada);
+                    label.setHorizontalAlignment(JLabel.CENTER);
+                    return label;
+                }
+                return super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            }
+        });
+
+        tabelaCidades.setRowHeight(50);
 
         botaoPesquisar.addActionListener(e -> realizarBusca(campoPesquisa));
 
@@ -138,6 +157,23 @@ public class WeatherAppGui extends JFrame {
         });
     }
 
+    private ImageIcon carregarImagem(String condicao) {
+        String caminhoImagem = "/assets/" + condicao + ".png"; // Certifique-se de que as imagens estão na pasta correta
+        URL url = getClass().getResource(caminhoImagem);
+        if (url != null) {
+            return new ImageIcon(url);
+        }
+        url = getClass().getResource("/assets/error.png");
+        assert url != null;
+        return new ImageIcon(url); // Retorna uma imagem padrão ou vazia se não encontrar
+    }
+
+    private ImageIcon redimensionarImagem(ImageIcon icon, int largura, int altura) {
+        Image imagem = icon.getImage();
+        Image imagemRedimensionada = imagem.getScaledInstance(largura, altura, Image.SCALE_SMOOTH);
+        return new ImageIcon(imagemRedimensionada);
+    }
+
     private void realizarBusca(JTextField campoPesquisa) {
         String nomeCidade = formatarTexto(campoPesquisa.getText().trim());
         if (nomeCidade.isEmpty()) {
@@ -145,13 +181,11 @@ public class WeatherAppGui extends JFrame {
             return;
         }
 
-        // Limpa a tabela e o campo de status
         modeloTabela.setRowCount(0);
         rotuloStatus.setText("Buscando cidades...");
         rotuloCarregando.setVisible(true);
-        campoPesquisa.setText(""); // Limpa o campo de pesquisa
+        campoPesquisa.setText("");
 
-        // Verifica se a tabela está vazia antes de mostrar o carregamento
         boolean tabelaVazia = modeloTabela.getRowCount() == 0;
 
         SwingUtilities.invokeLater(() -> {
@@ -184,7 +218,7 @@ public class WeatherAppGui extends JFrame {
                         String previsaoXML = WeatherForecastService.previsoesParaSeteDias(codCidade);
 
                         if (previsaoXML.trim().equals("<previsoes/>")) {
-                            modeloTabela.addRow(new Object[]{nomeCidadeLocal, uf, "Sem Dados", "Sem Dados", "Sem Dados"});
+                            modeloTabela.addRow(new Object[]{nomeCidadeLocal, uf, "Sem Dados", "Sem Dados", "Sem Dados", null});
                             continue;
                         }
 
@@ -197,14 +231,16 @@ public class WeatherAppGui extends JFrame {
                                 String temperatura = maxima + " / " + minima;
                                 String tempo = condicoesTempo.getOrDefault(p.getTempo(), "Descrição Não Disponível");
 
-                                // Formatar a data
                                 Date data = formatoEntrada.parse(p.getDia());
                                 String dataFormatada = formatoSaida.format(data);
 
-                                modeloTabela.addRow(new Object[]{nomeCidadeLocal, uf, dataFormatada, temperatura, tempo});
+                                // Adicionar imagem baseada na condição do tempo
+                                ImageIcon imagem = carregarImagem(p.getTempo());
+
+                                modeloTabela.addRow(new Object[]{nomeCidadeLocal, uf, dataFormatada, temperatura, tempo, imagem});
                             }
                         } else {
-                            modeloTabela.addRow(new Object[]{nomeCidadeLocal, uf, "Sem Dados", "Sem Dados", "Sem Dados"});
+                            modeloTabela.addRow(new Object[]{nomeCidadeLocal, uf, "Sem Dados", "Sem Dados", "Sem Dados", null});
                         }
                     } catch (ParseException ex) {
                         mostrarErro("Erro ao formatar a data: " + ex.getMessage());
@@ -215,7 +251,6 @@ public class WeatherAppGui extends JFrame {
             } catch (IOException ex) {
                 mostrarErro("Erro ao buscar dados: " + ex.getMessage());
             } finally {
-                // Só oculta o painel de carregamento se a tabela estiver vazia
                 if (tabelaVazia) {
                     rotuloCarregando.setVisible(false);
                 }
