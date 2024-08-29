@@ -23,7 +23,7 @@ public class WeatherForecastService {
         httpConnection.setDoOutput(true);
         httpConnection.connect();
 
-        BufferedReader buffer = new BufferedReader(new InputStreamReader(httpConnection.getInputStream(), StandardCharsets.UTF_8));
+        BufferedReader buffer = new BufferedReader(new InputStreamReader(httpConnection.getInputStream()));
         StringBuilder stringBuilder = new StringBuilder();
 
         String line;
